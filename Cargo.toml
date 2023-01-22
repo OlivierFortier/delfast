@@ -1,7 +1,12 @@
 [package]
 name = "delfast"
+description = "A simple CLI tool to delete a file/folder FAST"
+homepage = "https://github.com/OlivierFortier/delfast"
+repository = "https://github.com/OlivierFortier/delfast"
+readme = "README.md"
 version = "0.1.4"
 edition = "2021"
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

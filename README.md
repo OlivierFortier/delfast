@@ -12,6 +12,9 @@ delfast folder_to_be_deleted
 
 ### Installation
 
-Install from cargo : `cargo install delfast`
+_Install from cargo_ : `cargo install delfast`
 
-Install from binary release : simply go to the release section on the github repository and download the appropriate binary for your OS.
+_Install from binary release_ :
+simply go to the release section on the github repository and download the appropriate binary for your OS
+
+Then, add the binary to your path to have the command available everywhere

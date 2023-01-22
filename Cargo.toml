@@ -1,5 +1,5 @@
 [package]
-name = "delete_folder_fast"
+name = "delfast"
 version = "0.1.0"
 edition = "2021"
 

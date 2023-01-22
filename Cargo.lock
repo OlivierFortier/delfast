@@ -3,5 +3,5 @@
 version = 3
 
 [[package]]
-name = "delete_folder_fast"
+name = "delfast"
 version = "0.1.0"

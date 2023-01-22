@@ -8,6 +8,7 @@ fn main() {
 
     let green = "\x1b[32m";
     let blue = "\x1b[34m";
+    let red = "\x1b[31m";
     let reset = "\x1b[0m";
     let bold = "\x1b[1m";
 
@@ -21,7 +22,7 @@ fn main() {
     println!("{}------------------------------------------------------", green);
 
     // Delete the folder
-    fs::remove_dir_all(path).unwrap();
-    println!("Folder deleted successfully!");
+    fs::remove_dir_all(path).unwrap_or(println!("{}{}Error: Folder '{}' not found!", red, bold, &args[1]));
+    println!("{}Operation performed successfully!", green);
     println!("===================================================={}", reset);
 }

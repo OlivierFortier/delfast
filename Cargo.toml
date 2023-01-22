@@ -4,7 +4,7 @@ description = "A simple CLI tool to delete a file/folder FAST"
 homepage = "https://github.com/OlivierFortier/delfast"
 repository = "https://github.com/OlivierFortier/delfast"
 readme = "README.md"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2021"
 license = "MIT"
 

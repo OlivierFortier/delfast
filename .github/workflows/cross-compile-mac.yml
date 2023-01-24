@@ -1,3 +1,7 @@
+name: Cross Compile Mac
+run-name : ${{ github.actor }} is cross compiling for mac
+on: [push]
+jobs:
 # Setup Rust, use the x86_64-apple-darwin target but the rest can be customized.
 - uses: ATiltedTree/setup-rust@v1
   with:

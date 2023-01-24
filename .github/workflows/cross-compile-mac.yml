@@ -22,3 +22,8 @@ jobs:
     # Build your code for apple-darwin based release
     - name: Build Your Code
       run: cargo build --release --target x86_64-apple-darwin
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: mac_compiled
+        path: /home/runner/work/delfast/delfast

@@ -1,14 +1,22 @@
 # delfast
 
-## A simple CLI tool to delete a file/folder FAST
+## A simple CLI tool to delete a folder FAST
 
 ### Usage
 
-simply pass a relative file/folder path to the tool
+Simply pass a relative or absolute folder path to the tool.
 
 ```bash
 delfast folder_to_be_deleted
 ```
+
+You can also use the `--confirm` or `-c` flag to show a confirmation prompt.
+
+```bash
+delfast folder_to_be_deleted --confirm
+```
+
+The `--help` flag is available to show usage, options and information.
 
 ### Installation
 

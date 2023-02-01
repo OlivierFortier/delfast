@@ -70,6 +70,47 @@ const RED: &str = "\x1b[31m";
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
 
+fn main() {
+    // Get the command line arguments and the current working directory
+    let args = Args::parse();
+    let current_working_directory = env::current_dir().unwrap();
+    let path = current_working_directory.join(&args.path);
+
+    print_header(current_working_directory, &path);
+
+    // show confirmation prompt
+    if args.confirm {
+        // if the user does not enter 'y' or 'Y', exit the program
+        if !confirm_prompt() {
+            println!("{}{}Exiting...{}", RESET, RED, RESET);
+            print_fat_line(GREEN);
+            // exit the program
+            std::process::exit(0);
+        }
+    }
+
+    print_line(GREEN);
+    delete_folder(path);
+    print_fat_line(GREEN);
+}
+
+fn delete_folder(path: std::path::PathBuf) {
+    // use pattern matching to handle the error
+    match fs::remove_dir_all(path) {
+        Ok(_) => println!("{}Deleted successfully!", GREEN),
+        Err(e) => println!("{}{}Error : [{}]", RED, BOLD, e),
+    }
+}
+
+fn confirm_prompt() -> bool {
+    print_line(GREEN);
+    println!("{}{}Are you sure you want to delete this folder? [y/n] {}{}", RED, BOLD, RESET, RESET);
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input).unwrap();
+    // if the user enters 'y' or 'Y', return true
+    input.trim() == "y" || input.trim() == "Y"
+}
+
 fn print_fat_line(color: &str) {
     println!(
         "{}{}===================================================={}",
@@ -84,43 +125,9 @@ fn print_line(color: &str) {
     );
 }
 
-fn main() {
-    // Get the command line arguments and the current working directory
-    let args = Args::parse();
-    let current_working_directory = env::current_dir().unwrap();
-    let path = current_working_directory.join(&args.path);
-
+fn print_header(current_working_directory: std::path::PathBuf, path: &std::path::PathBuf) {
     print_fat_line(GREEN);
     println!("CWD is : {}{}", BLUE, &current_working_directory.display());
     print_line(GREEN);
     println!("Folder to be deleted : {}{}", BLUE, &path.display());
-
-    // show confirmation prompt
-    if args.confirm {
-        print_line(GREEN);
-        println!(
-            "{}{}{}{}",
-            RED, BOLD, "Are you sure you want to delete this folder? [y/n] ", RESET
-        );
-        let mut input = String::new();
-        std::io::stdin().read_line(&mut input).unwrap();
-
-        // if the user does not enter 'y' or 'Y', exit the program
-        if input.trim() != "y" && input.trim() != "Y" {
-            println!("{}{}Exiting...{}", RESET, RED, RESET);
-            print_fat_line(GREEN);
-            // exit the program
-            std::process::exit(0);
-        }
-    }
-
-    print_line(GREEN);
-
-    // Delete the folder
-    // use pattern matching to handle the error
-    match fs::remove_dir_all(path) {
-        Ok(_) => println!("{}Deleted successfully!", GREEN),
-        Err(e) => println!("{}{}Error : [{}]", RED, BOLD, e),
-    }
-    print_fat_line(GREEN);
 }

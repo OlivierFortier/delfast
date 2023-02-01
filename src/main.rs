@@ -2,6 +2,56 @@ use clap::Parser;
 use std::env;
 use std::fs;
 
+#[cfg(target_os = "windows")]
+mod windows {
+    use winreg::RegKey;
+    use winreg::enums::{HKEY_CLASSES_ROOT, KEY_WRITE};
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    pub fn add_context_menu() {
+        let path = "Directory\\Background\\shell\\delfast";
+        let key = RegKey::predef(HKEY_CLASSES_ROOT)
+            .create_subkey(path)
+            .unwrap();
+        key.set_value("", &"delfast").unwrap();
+        let command_key = key.create_subkey("command").unwrap();
+        command_key.set_value("", &format!("delfast.exe %1")).unwrap();
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use cocoa::base::{id, nil};
+    use cocoa::appkit::{NSStatusItem, NSStatusBar};
+    use cocoa::foundation::{NSString};
+
+    pub fn add_context_menu() {
+        let bar = NSStatusBar::systemStatusBar();
+        let item = bar.statusItemWithLength(30.0);
+        item.setTitle(NSString::alloc(nil).init_str("delfast"));
+        item.setAction("open:".to_owned());
+    }
+}
+
+#[cfg(target_os = "linux")]
+mod linux {
+    use xdg::BaseDirectories;
+    use std::fs;
+    use std::path::Path;
+
+    pub fn add_context_menu() {
+        let xdg_dirs = BaseDirectories::new().unwrap();
+        let path = xdg_dirs.place_data_file("delfast/delfast.desktop").unwrap();
+        let menu_entry = "[Desktop Entry]
+        Name=delfast
+        Exec=delfast %f
+        Type=Application
+        NoDisplay=true
+        Categories=Utility;";
+        fs::write(path, menu_entry).unwrap();
+    }
+}
 #[derive(Parser, Debug)]
 #[command(name="delfast", author, version, about, long_about = None)]
 struct Args {

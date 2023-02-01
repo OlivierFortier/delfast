@@ -15,3 +15,6 @@ categories = ["command-line-utilities"]
 
 [dependencies]
 clap = { version = "4.1.4", features = ["derive"] }
+cocoa = "0.24.1"
+winreg = "0.10.1"
+xdg = "2.4.1"

@@ -30,7 +30,7 @@ mod context_menu {
 
 #[cfg(target_os = "macos")]
 mod context_menu {
-    use cocoa::appkit::{NSStatusBar, NSStatusItem};
+    use cocoa::appkit::{NSMenu, NSMenuItem, NSStatusBar, NSStatusItem};
     use cocoa::base::{id, nil};
     use cocoa::foundation::{NSAutoreleasePool, NSString};
 
@@ -44,8 +44,21 @@ mod context_menu {
     }
 
     pub fn is_installed() -> bool {
-        // TODO: Implement check for context menu installation on MacOS
-        false
+        let pool = unsafe { NSAutoreleasePool::new(nil) };
+        let bar = NSStatusBar::systemStatusBar();
+        let menu = bar.menu();
+        let menu_items = menu.itemArray();
+        let mut is_installed = false;
+        for i in 0..menu_items.count() {
+            let item = menu_items.objectAtIndex(i);
+            let title = item.title();
+            if title.isEqualToString(NSString::alloc(nil).init_str("delfast")) {
+                is_installed = true;
+                break;
+            }
+        }
+        drop(pool);
+        is_installed
     }
 }
 

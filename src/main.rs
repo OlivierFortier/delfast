@@ -1,214 +1,198 @@
-use clap::Parser;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
-
-#[cfg(target_os = "windows")]
-mod context_menu {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    use winreg::enums::{HKEY_CLASSES_ROOT, KEY_WRITE};
-    use winreg::RegKey;
-
-    pub fn add() {
-        let path = "Directory\\Background\\shell\\delfast";
-        let key = RegKey::predef(HKEY_CLASSES_ROOT)
-            .create_subkey(path)
-            .unwrap_or_default();
-        key.set_value("", &"delfast").unwrap();
-        let command_key = key.create_subkey("command").unwrap();
-        command_key
-            .set_value("", &format!("delfast.exe %1"))
-            .unwrap();
-    }
-
-    pub fn is_installed() -> bool {
-        let path = "Directory\\Background\\shell\\delfast";
-        RegKey::predef(HKEY_CLASSES_ROOT).open_subkey(path).is_ok()
-    }
-}
-
-#[cfg(target_os = "macos")]
-mod context_menu {
-    use cocoa::appkit::{NSMenu, NSMenuItem, NSStatusBar, NSStatusItem};
-    use cocoa::base::{id, nil};
-    use cocoa::foundation::{NSAutoreleasePool, NSString};
-
-    pub fn add() {
-        let pool = unsafe { NSAutoreleasePool::new(nil) };
-        let bar = NSStatusBar::systemStatusBar();
-        let item = bar.statusItemWithLength(30.0);
-        item.setTitle(NSString::alloc(nil).init_str("delfast"));
-        item.setAction("open:".to_owned());
-        drop(pool);
-    }
-
-    pub fn is_installed() -> bool {
-        let pool = unsafe { NSAutoreleasePool::new(nil) };
-        let bar = NSStatusBar::systemStatusBar();
-        let menu = bar.menu();
-        let menu_items = menu.itemArray();
-        let mut is_installed = false;
-        for i in 0..menu_items.count() {
-            let item = menu_items.objectAtIndex(i);
-            let title = item.title();
-            if title.isEqualToString(NSString::alloc(nil).init_str("delfast")) {
-                is_installed = true;
-                break;
-            }
-        }
-        drop(pool);
-        is_installed
-    }
-}
-
-#[cfg(target_os = "linux")]
-mod context_menu {
-    use std::fs;
-    use std::path::Path;
-    use xdg::BaseDirectories;
-
-    pub fn add() {
-        let xdg_dirs = BaseDirectories::new().unwrap();
-        let path = xdg_dirs
-            .place_data_file("delfast/delfast.desktop")
-            .unwrap_or_else(|_| {
-                panic!("Failed to create data file for delfast");
-            });
-        let menu_entry = "[Desktop Entry]
-Name=delfast
-Exec=delfast %f
-Type=Application
-NoDisplay=true
-Categories=Utility;";
-        fs::write(path, menu_entry).unwrap_or_else(|_| {
-            panic!("Failed to write data file for delfast");
-        });
-    }
-
-    pub fn is_installed() -> bool {
-        let xdg_dirs = BaseDirectories::new().unwrap();
-        let path = xdg_dirs
-            .place_data_file("applications/delfast.desktop")
-            .unwrap_or_default();
-        Path::new(&path).exists()
-    }
-}
-
-#[derive(Parser, Debug)]
-#[command(name = "delfast", author, version, about, long_about = None)]
-struct Args {
-    /// Show confirmation prompt before deleting
-    /// Show confirmation prompt before deleting
-    #[arg(short, long, default_value = "false")]
-    confirm: bool,
-
-    /// Path to the folder to be deleted (relative or absolute)
-    #[arg(parse(from_os_str))]
-    path: PathBuf,
-}
-// Formatting strings
-const GREEN: &str = "\x1b[32m";
-const BLUE: &str = "\x1b[34m";
-const RED: &str = "\x1b[31m";
-const RESET: &str = "\x1b[0m";
-const BOLD: &str = "\x1b[1m";
+use std::io::{self, Write};
+use std::path::Path;
 
 fn main() {
-    // Get the command line arguments and the current working directory
-    let args = Args::parse();
-    let current_working_directory = env::current_dir().unwrap();
-    if args.install_context_menu {
-        // Check if context menu is installed
-        let context_menu_installed = match std::env::consts::OS {
-            "windows" => context_menu::is_installed(),
-            "macos" => context_menu::is_installed(),
-            "linux" => context_menu::is_installed(),
-            _ => false,
-        };
+    let args: Vec<String> = env::args().collect();
+    let mut confirm = false;
+    let mut install = false;
 
-        // If context menu is already installed, exit the program
-        if context_menu_installed {
-            println!("{}Context menu is already installed!{}", GREEN, RESET);
-            std::process::exit(0);
+    if args.len() < 2 {
+        println!("Usage: {} <path> [--confirm] [--install]", args[0]);
+        return;
+    }
+
+    let path = Path::new(&args[1]);
+
+    if !path.exists() {
+        println!("{} does not exist", path.display());
+        return;
+    }
+
+    for arg in args.iter().skip(2) {
+        match arg.as_str() {
+            "--confirm" => confirm = true,
+            "--install" => install = true,
+            _ => (),
         }
+    }
 
-        // Install the context menu
-        match std::env::consts::OS {
-            "windows" => context_menu::add(),
-            "macos" => context_menu::add(),
-            "linux" => context_menu::add(),
-            // If the operating system is not supported, exit the program with an error message
-            _ => {
-                eprintln!(
-                    "{}{}Error : [{}]",
-                    RED, BOLD, "Operating system not supported"
-                );
-                std::process::exit(1);
+    if path.is_file() {
+        if confirm {
+            print!("Are you sure you want to delete {}? [y/N] ", path.display());
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            if !input.trim().eq_ignore_ascii_case("y") {
+                return;
             }
         }
-
-        // Write a message to the console to indicate that the context menu was installed successfully
-        println!("{}Context menu installed successfully!{}", GREEN, RESET);
-        std::process::exit(0);
+        match fs::remove_file(path) {
+            Ok(_) => println!("Deleted file {}", path.display()),
+            Err(e) => println!("Error deleting file {}: {}", path.display(), e),
+        }
+    } else if path.is_dir() {
+        if confirm {
+            print!(
+                "Are you sure you want to delete {} and all its contents? [y/N] ",
+                path.display()
+            );
+            io::stdout().flush().unwrap();
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            if !input.trim().eq_ignore_ascii_case("y") {
+                return;
+            }
+        }
+        match fs::remove_dir_all(path) {
+            Ok(_) => println!("Deleted folder {}", path.display()),
+            Err(e) => println!("Error deleting folder {}: {}", path.display(), e),
+        }
+    } else {
+        println!("{} is not a file or folder", path.display());
     }
 
-    // Print the header information
-    print_header(&current_working_directory, &args.path);
+    if install {
 
-    // Show confirmation prompt
-    if args.confirm {
-        // If the user does not enter 'y' or 'Y', exit the program
-        if !confirm_prompt() {
-            println!("{}{}Exiting...{}", RESET, RED, RESET);
-            print_fat_line(GREEN);
-            std::process::exit(0);
+        #[cfg(target_os = "windows")]
+        fn install() -> io::Result<()> {
+            use std::ffi::OsString;
+            use std::os::windows::ffi::OsStringExt;
+            use winreg::{enums, RegKey};
+
+            let exe_path = env::current_exe()?;
+            let exe_path_str = exe_path.to_str().unwrap();
+
+            let hklm = RegKey::predef(enums::HKEY_CLASSES_ROOT);
+            let key = hklm.create_subkey("Directory\\Background\\shell\\Delete with Rust")?;
+            key.set_value("", &OsString::from("Delete with Rust"))?;
+            let command_key = key.create_subkey("command")?;
+            command_key.set_value("", &OsString::from(format!("\"{}\" \"%V\"", exe_path_str)))?;
+
+            Ok(())
+        }
+
+        #[cfg(target_os = "linux")]
+        fn install() -> io::Result<()> {
+            use std::fs::{self, File};
+            use std::io::{self, Write};
+            use std::path::{Path, PathBuf};
+
+            let exe_path = env::current_exe()?;
+            let exe_path_str = exe_path.to_str().unwrap();
+
+            // For KDE Plasma
+            let kde_plasma_dir = PathBuf::from("/usr/share/kservices5/ServiceMenus/");
+            if kde_plasma_dir.exists() {
+                let desktop_file_path = kde_plasma_dir.join("delete-with-rust.desktop");
+                let mut desktop_file = File::create(&desktop_file_path)?;
+                write!(
+                    desktop_file,
+                    r#"[Desktop Entry]
+Type=Service
+ServiceTypes=KonqPopupMenu/Plugin
+Actions=delete_with_rust;
+
+[Desktop Action delete_with_rust]
+Name=Delete with Rust
+Exec={}
+Icon=<path-to-icon>
+"#,
+                    exe_path_str
+                )?;
+                desktop_file.flush()?;
+                println!(
+                    "Program installed as a shortcut to the right-click context menu on KDE Plasma"
+                );
+            }
+
+            // For GNOME
+            let gnome_dir = PathBuf::from("/usr/share/applications/");
+            if gnome_dir.exists() {
+                let desktop_file_path = gnome_dir.join("delete-with-rust.desktop");
+                let mut desktop_file = File::create(&desktop_file_path)?;
+                write!(
+                    desktop_file,
+                    r#"[Desktop Entry]
+Type=Application
+Name=Delete with Rust
+Exec={}
+NoDisplay=true
+Icon=<path-to-icon>
+"#,
+                    exe_path_str
+                )?;
+                desktop_file.flush()?;
+                println!(
+                    "Program installed as a shortcut to the right-click context menu on GNOME"
+                );
+                let directory_file_path =
+                    PathBuf::from("/usr/share/desktop-directories/delete-with-rust.directory");
+                let mut directory_file = File::create(&directory_file_path)?;
+                write!(
+                    directory_file,
+                    r#"[Desktop Entry]
+Type=Directory
+Name=Delete with Rust
+Icon=<path-to-icon>
+"#,
+                )?;
+                directory_file.flush()?;
+            }
+
+            Ok(())
+        }
+
+        #[cfg(target_os = "macos")]
+        fn install() -> io::Result<()> {
+            use std::process::Command;
+
+            let exe_path = env::current_exe()?;
+            let exe_path_str = exe_path.to_str().unwrap();
+
+            Command::new("defaults")
+                .args(&[
+                    "write",
+                    "com.apple.desktopservices",
+                    "ContextMenuItems",
+                    "-array-add",
+                    format(
+                        r#"'
+                {{
+                    Command = "{0}";
+                    Name = "Delete with Rust";
+                    Icon = "<path-to-icon>";
+                }}
+                '"#,
+                        exe_path_str,
+                    )
+                    .as_str(),
+                ])
+                .output()
+                .expect("failed to execute process");
+
+            Ok(())
+        }
+
+        #[cfg(not(any(target_os = "windows", target_os = "linux", target_os="macos")))]
+        fn install() -> io::Result<()> {
+            println!("This feature is only available on Windows, Linux and macOS");
+            Ok(())
+        }
+
+        if install().is_ok() {
+            println!("Program installed as a shortcut to the right-click context menu");
         }
     }
-
-    // Delete the folder
-    print_line(GREEN);
-    delete_folder(&args.path);
-    print_fat_line(GREEN);
-}
-
-fn delete_folder(path: &PathBuf) {
-    // Use pattern matching to handle the error
-    match fs::remove_dir_all(path) {
-        Ok(_) => println!("{}Deleted successfully!", GREEN),
-        Err(e) => eprintln!("{}{}Error : [{}]", RED, BOLD, e),
-    }
-}
-
-fn confirm_prompt() -> bool {
-    print_line(GREEN);
-    println!(
-        "{}{}Are you sure you want to delete this folder? [y/n] {}{}",
-        RED, BOLD, RESET, RESET
-    );
-    let mut input = String::new();
-    std::io::stdin().read_line(&mut input).unwrap();
-    // If the user enters 'y' or 'Y', return true
-    input.trim() == "y" || input.trim() == "Y"
-}
-
-fn print_fat_line(color: &str) {
-    println!(
-        "{}{}===================================================={}",
-        color, BOLD, RESET
-    );
-}
-
-fn print_line(color: &str) {
-    println!(
-        "{}------------------------------------------------------{}",
-        color, RESET
-    );
-}
-
-fn print_header(current_working_directory: &PathBuf, path: &PathBuf) {
-    print_fat_line(GREEN);
-    println!("CWD is : {}{}", BLUE, &current_working_directory.display());
-    print_line(GREEN);
-    println!("Folder to be deleted : {}{}", BLUE, &path.display());
 }

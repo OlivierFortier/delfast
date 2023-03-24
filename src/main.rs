@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 
 #[cfg(target_os = "windows")]
 mod context_menu {
@@ -13,7 +14,7 @@ mod context_menu {
         let path = "Directory\\Background\\shell\\delfast";
         let key = RegKey::predef(HKEY_CLASSES_ROOT)
             .create_subkey(path)
-            .unwrap();
+            .unwrap_or_default();
         key.set_value("", &"delfast").unwrap();
         let command_key = key.create_subkey("command").unwrap();
         command_key
@@ -23,8 +24,7 @@ mod context_menu {
 
     pub fn is_installed() -> bool {
         let path = "Directory\\Background\\shell\\delfast";
-        let key = RegKey::predef(HKEY_CLASSES_ROOT).open_subkey(path).is_ok();
-        key
+        RegKey::predef(HKEY_CLASSES_ROOT).open_subkey(path).is_ok()
     }
 }
 
@@ -57,40 +57,43 @@ mod context_menu {
 
     pub fn add() {
         let xdg_dirs = BaseDirectories::new().unwrap();
-        let path = xdg_dirs.place_data_file("delfast/delfast.desktop").unwrap();
+        let path = xdg_dirs
+            .place_data_file("delfast/delfast.desktop")
+            .unwrap_or_else(|_| {
+                panic!("Failed to create data file for delfast");
+            });
         let menu_entry = "[Desktop Entry]
 Name=delfast
 Exec=delfast %f
 Type=Application
 NoDisplay=true
 Categories=Utility;";
-        fs::write(path, menu_entry).unwrap();
+        fs::write(path, menu_entry).unwrap_or_else(|_| {
+            panic!("Failed to write data file for delfast");
+        });
     }
 
     pub fn is_installed() -> bool {
         let xdg_dirs = BaseDirectories::new().unwrap();
         let path = xdg_dirs
             .place_data_file("applications/delfast.desktop")
-            .unwrap();
+            .unwrap_or_default();
         Path::new(&path).exists()
     }
 }
 
 #[derive(Parser, Debug)]
-#[command(name="delfast", author, version, about, long_about = None)]
+#[command(name = "delfast", author, version, about, long_about = None)]
 struct Args {
+    /// Show confirmation prompt before deleting
     /// Show confirmation prompt before deleting
     #[arg(short, long, default_value = "false")]
     confirm: bool,
 
     /// Path to the folder to be deleted (relative or absolute)
-    path: String,
-
-    /// Install the context menu
-    #[arg(long)]
-    install_context_menu: bool,
+    #[arg(parse(from_os_str))]
+    path: PathBuf,
 }
-
 // Formatting strings
 const GREEN: &str = "\x1b[32m";
 const BLUE: &str = "\x1b[34m";
@@ -102,8 +105,6 @@ fn main() {
     // Get the command line arguments and the current working directory
     let args = Args::parse();
     let current_working_directory = env::current_dir().unwrap();
-    let path = current_working_directory.join(&args.path);
-
     if args.install_context_menu {
         // Check if context menu is installed
         let context_menu_installed = match std::env::consts::OS {
@@ -126,13 +127,13 @@ fn main() {
             "linux" => context_menu::add(),
             // If the operating system is not supported, exit the program with an error message
             _ => {
-                println!(
+                eprintln!(
                     "{}{}Error : [{}]",
                     RED, BOLD, "Operating system not supported"
                 );
                 std::process::exit(1);
             }
-        };
+        }
 
         // Write a message to the console to indicate that the context menu was installed successfully
         println!("{}Context menu installed successfully!{}", GREEN, RESET);
@@ -140,7 +141,7 @@ fn main() {
     }
 
     // Print the header information
-    print_header(&current_working_directory, &path);
+    print_header(&current_working_directory, &args.path);
 
     // Show confirmation prompt
     if args.confirm {
@@ -154,15 +155,15 @@ fn main() {
 
     // Delete the folder
     print_line(GREEN);
-    delete_folder(&path);
+    delete_folder(&args.path);
     print_fat_line(GREEN);
 }
 
-fn delete_folder(path: &std::path::PathBuf) {
+fn delete_folder(path: &PathBuf) {
     // Use pattern matching to handle the error
     match fs::remove_dir_all(path) {
         Ok(_) => println!("{}Deleted successfully!", GREEN),
-        Err(e) => println!("{}{}Error : [{}]", RED, BOLD, e),
+        Err(e) => eprintln!("{}{}Error : [{}]", RED, BOLD, e),
     }
 }
 
@@ -192,7 +193,7 @@ fn print_line(color: &str) {
     );
 }
 
-fn print_header(current_working_directory: &std::path::PathBuf, path: &std::path::PathBuf) {
+fn print_header(current_working_directory: &PathBuf, path: &PathBuf) {
     print_fat_line(GREEN);
     println!("CWD is : {}{}", BLUE, &current_working_directory.display());
     print_line(GREEN);
